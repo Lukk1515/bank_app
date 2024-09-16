@@ -21,7 +21,7 @@ class BankAccount:
         """
         return self.__balance
 
-    def add_balance(self, amount):
+    def add_balance(self, amount: float):
         """Add a specified amount to the account balance and record the transaction.
 
         Args:
@@ -31,7 +31,7 @@ class BankAccount:
         self.__transaction_history.append(f"Deposited {amount}")
         print(f"Deposited {amount}. Current balance: {self.__balance}")
 
-    def card_payment(self, price):
+    def card_payment(self, price: float):
         """Deduct a specified amount from the account for a card payment, if sufficient funds are available.
 
         Args:
@@ -57,7 +57,7 @@ class BankAccount:
         """
         return "\n".join(self.__transaction_history)
 
-    def transfer(self, amount, other_account):
+    def transfer(self, amount: float, other_account: str):
         """Transfer a specified amount to another bank account.
 
         Args:
@@ -88,7 +88,7 @@ class BankAccount:
             f"Completed transactions: {self.__transaction_history}. Current balance: {self.__balance}"
         )
 
-    def apply_interest(self, interest_rate):
+    def apply_interest(self, interest_rate: float):
         """Apply interest to the current balance and update the transaction history.
 
         Args:
@@ -101,7 +101,7 @@ class BankAccount:
         )
         print(f"The account balance after adding interest is {self.__balance}")
 
-    def change_account_holder(self, new_holder):
+    def change_account_holder(self, new_holder: str):
         """Change the account holder's name and record the update in the transaction history.
 
         Args:
@@ -111,7 +111,7 @@ class BankAccount:
         self.__transaction_history.append(f"New holder the account is {new_holder}")
         print(f"New holder the account is {new_holder}")
 
-    def set_overdraft_limit(self, limit):
+    def set_overdraft_limit(self, limit: float):
         """Set a new overdraft limit for the account.
 
         Args:
