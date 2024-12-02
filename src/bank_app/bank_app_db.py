@@ -106,23 +106,6 @@ class BankAccount:
         else:
             print("Payment declined")
 
-    # ---------------------------
-
-    # def user_exists(self, user_id):
-    #     # Checks if a user with the specified user_id exists in the system
-    #     try:
-    #         with self._conn.cursor() as cursor:
-    #             query = f"SELECT EXISTS(SELECT 1 FROM {self.schema}.accounts WHERE user_id = %s)"
-    #             cursor.execute(query, (user_id,))
-    #             result = cursor.fetchone()
-    #             if result[0] is True:
-    #                 print(f"User {user_id} exists in the system")
-    #             else:
-    #                 print(f"User {user_id} doesn't exists in the system")
-
-    #     except Exception as e:
-    #         print(f"An error occurred while checking if user {user_id} exists: {e}")
-    # ---
     def user_exists(self, user_id):
         # Checks if a user with the specified user_id exists in the system
         try:
@@ -135,7 +118,6 @@ class BankAccount:
         except Exception as e:
             print(f"An error occurred while checking if user {user_id} exists: {e}")
 
-    # ---
     def update_balance(self, user_id, new_balance):
         try:
             with self._conn.cursor() as cursor:
@@ -218,18 +200,3 @@ class BankAccount:
         except Exception as e:
             print(f"An error occurred while reset account {user_id}")
             self._conn.rollback()
-
-
-# a = BankAccount()
-
-# a.add_user(user_id=1, balance=6000)
-# a.add_balance(user_id=1, amount=3000)
-# a.remove_balance(user_id=3, amount=4000)
-# a.founds_transfer(user_id_from=1, user_id_to=4, amount=20000)
-# a.card_payment(user_id=4, amount=1000)
-# a.remove_user(user_id=1)
-# a.user_exists(user_id=3)
-# a.update_balance(user_id=1, new_balance=3000)
-# a.get_all_users()
-# a.add_multiple_users(users_list=[{'user_id': 7, 'balance': 1000}, {'user_id': 8, 'balance': 2000}])
-# a.reset_balance(user_id=2)
