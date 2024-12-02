@@ -108,6 +108,21 @@ class BankAccount:
 
     # ---------------------------
 
+    # def user_exists(self, user_id):
+    #     # Checks if a user with the specified user_id exists in the system
+    #     try:
+    #         with self._conn.cursor() as cursor:
+    #             query = f"SELECT EXISTS(SELECT 1 FROM {self.schema}.accounts WHERE user_id = %s)"
+    #             cursor.execute(query, (user_id,))
+    #             result = cursor.fetchone()
+    #             if result[0] is True:
+    #                 print(f"User {user_id} exists in the system")
+    #             else:
+    #                 print(f"User {user_id} doesn't exists in the system")
+
+    #     except Exception as e:
+    #         print(f"An error occurred while checking if user {user_id} exists: {e}")
+    # ---
     def user_exists(self, user_id):
         # Checks if a user with the specified user_id exists in the system
         try:
@@ -115,14 +130,12 @@ class BankAccount:
                 query = f"SELECT EXISTS(SELECT 1 FROM {self.schema}.accounts WHERE user_id = %s)"
                 cursor.execute(query, (user_id,))
                 result = cursor.fetchone()
-                if result[0] is True:
-                    print(f"User {user_id} exists in the system")
-                else:
-                    print(f"User {user_id} doesn't exists in the system")
+                return result[0]
 
         except Exception as e:
             print(f"An error occurred while checking if user {user_id} exists: {e}")
 
+    # ---
     def update_balance(self, user_id, new_balance):
         try:
             with self._conn.cursor() as cursor:
