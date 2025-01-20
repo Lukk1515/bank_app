@@ -1,202 +1,195 @@
 import psycopg2
+import os
+
+
+class TransactionException(Exception):
+    pass
+
+
+class AccountFundsError(Exception):
+    pass
 
 
 class BankAccount:
+    def __init__(self, schema: str = "bank_app"):
+        """
+        Initialize the BankAccount class with a database connection and schema.
 
-    def __init__(self, schema="bank_app"):
-        # Initializes the BankAccount class, creating a connection to the database
+        Parameters:
+        schema (str): The schema name for the database.
+        """
         self._conn = self._connect_to_db()
         self.schema = schema
 
-    def _connect_to_db(self):
-        # Establishes a connection to the PostgreSQL database
-        # Tworzymy połączenie z bazą danych
-        conn = psycopg2.connect(
-            dbname="postgres",  # nazwa bazy danych
-            user="postgres",  # nazwa użytkownika
-            password="lucas",  # hasło do bazy danych
-            host="localhost",  # host, jeśli lokalny to 'localhost'
-            port="5432",  # port PostgreSQL, domyślnie 5432
+    def _connect_to_db(self) -> psycopg2.extensions.connection:
+        """
+        Establish a connection to the PostgreSQL database.
+
+        Returns:
+        psycopg2.extensions.connection: A connection object to the database.
+        """
+        return psycopg2.connect(
+            dbname=os.getenv("DBNAME"),
+            user=os.getenv("USER"),
+            password=os.getenv("PASSWORD"),
+            host=os.getenv("HOST"),
+            port=os.getenv("PORT"),
         )
-        return conn
 
-    def get_balance(self, record_id):
-        # Retrieves the account balance for a specified user_id
+    def _execute_query(self, query: str, params: tuple | None = None):
+        """
+        Execute a database query and handle transactions.
+
+        Parameters:
+        query (str): The SQL query to execute.
+        params (tuple | None): Parameters for the SQL query.
+
+        Returns:
+        list: Query results for SELECT queries.
+        """
+        try:
+            with self._conn.cursor() as cursor:
+                cursor.execute(query, params)
+                if query.strip().lower().startswith("select"):
+                    return cursor.fetchall()
+                self._conn.commit()
+        except Exception as e:
+            self._conn.rollback()
+            raise e
+
+    def get_balance(self, record_id: int) -> float:
+        """
+        Retrieve the account balance for a given user ID.
+
+        Parameters:
+        record_id (int): The user ID.
+
+        Returns:
+        float: The account balance.
+        """
+        query = f"SELECT balance FROM {self.schema}.accounts WHERE user_id = %s"
+        result = self._execute_query(query, (record_id,))
+        return result[0][0]
+
+    def add_user(self, user_id: int, balance: float) -> None:
+        """
+        Add a new user with the specified ID and balance.
+
+        Parameters:
+        user_id (int): The user ID.
+        balance (float): The initial account balance.
+        """
+        query = f"INSERT INTO {self.schema}.accounts (user_id, balance) VALUES (%s, %s)"
+        self._execute_query(query, (user_id, balance))
+
+    def remove_user(self, user_id: int) -> None:
+        """
+        Remove a user with the specified ID.
+
+        Parameters:
+        user_id (int): The user ID to remove.
+        """
+        query = f"DELETE FROM {self.schema}.accounts WHERE user_id = %s"
+        self._execute_query(query, (user_id,))
+
+    def add_balance(self, user_id: int, amount: float) -> None:
+        """
+        Add a specified amount to the user's account balance.
+
+        Parameters:
+        user_id (int): The user ID.
+        amount (float): The amount to add.
+        """
+        new_balance = self.get_balance(user_id) + amount
+        query = f"UPDATE {self.schema}.accounts SET balance = %s WHERE user_id = %s"
+        self._execute_query(query, (new_balance, user_id))
+
+    def remove_balance(self, user_id: int, amount: float) -> None:
+        """
+        Deduct a specified amount from the user's account balance.
+
+        Parameters:
+        user_id (int): The user ID.
+        amount (float): The amount to deduct.
+
+        Raises:
+        AccountFundsError: If the resulting balance is negative.
+        """
+        new_balance = self.get_balance(user_id) - amount
+        if new_balance < 0:
+            raise AccountFundsError("Insufficient funds in the account.")
+        query = f"UPDATE {self.schema}.accounts SET balance = %s WHERE user_id = %s"
+        self._execute_query(query, (new_balance, user_id))
+
+    def funds_transfer(self, user_id_from: int, user_id_to: int, amount: float) -> None:
+        """
+        Transfer funds between two accounts.
+
+        Parameters:
+        user_id_from (int): The ID of the sender.
+        user_id_to (int): The ID of the recipient.
+        amount (float): The amount to transfer.
+        """
+        self.remove_balance(user_id_from, amount)
+        self.add_balance(user_id_to, amount)
+
+    def user_exists(self, user_id: int) -> bool:
+        """
+        Check if a user with the specified ID exists.
+
+        Parameters:
+        user_id (int): The user ID to check.
+
+        Returns:
+        bool: True if the user exists, False otherwise.
+        """
+        query = (
+            f"SELECT EXISTS(SELECT 1 FROM {self.schema}.accounts WHERE user_id = %s)"
+        )
+        result = self._execute_query(query, (user_id,))
+        return result[0][0]
+
+    def update_balance(self, user_id: int, new_balance: float) -> None:
+        """
+        Update the user's account balance to a new value.
+
+        Parameters:
+        user_id (int): The user ID.
+        new_balance (float): The new account balance.
+        """
+        query = f"UPDATE {self.schema}.accounts SET balance = %s WHERE user_id = %s"
+        self._execute_query(query, (new_balance, user_id))
+
+    def get_all_users(self) -> list[int]:
+        """
+        Retrieve a list of all user IDs.
+
+        Returns:
+        list[int]: A list of user IDs.
+        """
+        query = f"SELECT user_id FROM {self.schema}.accounts"
+        result = self._execute_query(query)
+        return [user[0] for user in result]
+
+    def add_multiple_users(self, users_list: list[dict]) -> None:
+        """
+        Add multiple users from a list of dictionaries.
+
+        Parameters:
+        users_list (list[dict]): A list of dictionaries containing user_id and balance.
+        """
+        query = f"INSERT INTO {self.schema}.accounts (user_id, balance) VALUES (%s, %s)"
+        values = [(user["user_id"], user["balance"]) for user in users_list]
         with self._conn.cursor() as cursor:
-            query = f"SELECT balance FROM {self.schema}.accounts WHERE user_id = %s"
-            cursor.execute(query, (record_id,))
-            result = cursor.fetchone()
-            return result
+            cursor.executemany(query, values)
+        self._conn.commit()
 
-    def add_user(self, user_id, balance):
-        # Adds a new user with the specified user_id and balance
-        try:
-            with self._conn.cursor() as cursor:
-                query = f"""INSERT INTO {self.schema}.accounts (user_id, balance) VALUES (%s, %s)"""
-                cursor.execute(query, (user_id, balance))
-                self._conn.commit()
-                print(f"Succesfully added user with id: {user_id}")
+    def reset_balance(self, user_id: int) -> None:
+        """
+        Reset the user's account balance to 0.
 
-        except Exception as e:
-            print(f"Unable to add user: {e}")
-            self._conn.rollback()
-
-    def remove_user(self, user_id):
-        # Removes the user with the specified user_id
-        try:
-            with self._conn.cursor() as cursor:
-                query = f"DELETE FROM {self.schema}.accounts WHERE user_id = %s"
-                cursor.execute(query, (user_id,))
-                self._conn.commit()
-                print(f"Deleted user {user_id}")
-        except Exception as e:
-            print(f"Unable to delete user: {e}")
-
-    def add_balance(self, user_id, amount):
-        # Adds a specified amount to the user’s account balance
-        try:
-            with self._conn.cursor() as cursor:
-                balance = list(self.get_balance(user_id))
-                balance[0] += amount
-                query = (
-                    f"UPDATE {self.schema}.accounts SET balance = %s WHERE user_id = %s"
-                )
-                cursor.execute(query, (balance[0], user_id))
-                self._conn.commit()
-                print(f"Succesfully to add amount {amount} to account {user_id}")
-
-        except Exception as e:
-            print(f"Failed to add amount {amount} to account {user_id}.")
-            self._conn.rollback()
-
-    def remove_balance(self, user_id, amount):
-        # Deducts a specified amount from the user’s account balance
-        try:
-            with self._conn.cursor() as cursor:
-                balance = list(self.get_balance(user_id))
-                if balance[0] < amount:
-                    raise ValueError("amount is greater than account balance.")
-                balance[0] -= amount
-                query = (
-                    f"UPDATE {self.schema}.accounts SET balance = %s WHERE user_id = %s"
-                )
-                cursor.execute(query, (balance[0], user_id))
-                self._conn.commit()
-                print(f"Sucesfully removed {amount} form account")
-                return True
-        except Exception as e:
-            print(f"Failed to remove amount {amount} to account {user_id}.")
-            self._conn.rollback()
-            return False
-
-    def founds_transfer(self, user_id_from, user_id_to, amount):
-        # Transfers funds between two accounts
-        result = self.remove_balance(user_id=user_id_from, amount=amount)
-        if result is True:
-            self.add_balance(user_id=user_id_to, amount=amount)
-            print(f"Succesfully transfered founds from {user_id_from} to {user_id_to}")
-        else:
-            print("Failed to transfer founds.")
-
-    def card_payment(self, user_id, amount):
-        # Makes a card payment by deducting the specified amount from the balance
-        result = self.remove_balance(user_id, amount)
-        if result is True:
-            print("Payment accepted")
-        else:
-            print("Payment declined")
-
-    def user_exists(self, user_id):
-        # Checks if a user with the specified user_id exists in the system
-        try:
-            with self._conn.cursor() as cursor:
-                query = f"SELECT EXISTS(SELECT 1 FROM {self.schema}.accounts WHERE user_id = %s)"
-                cursor.execute(query, (user_id,))
-                result = cursor.fetchone()
-                return result[0]
-
-        except Exception as e:
-            print(f"An error occurred while checking if user {user_id} exists: {e}")
-
-    def update_balance(self, user_id, new_balance):
-        try:
-            with self._conn.cursor() as cursor:
-                query = (
-                    f"UPDATE {self.schema}.accounts SET balance = %s WHERE user_id = %s"
-                )
-                cursor.execute(
-                    query,
-                    (
-                        new_balance,
-                        user_id,
-                    ),
-                )
-                self._conn.commit()
-                print(
-                    f"User ID {user_id} balance successfully updated to {new_balance}."
-                )
-
-        except Exception as e:
-            print(f"An error occurred while updating balance for user {user_id}.")
-            self._conn.rollback()
-
-    # metoda do pobierania listy samych użytkowników
-    def get_all_users(self):
-        # Retrieves a list of all user_ids in the system
-        with self._conn.cursor() as cursor:
-            query = f"SELECT user_id FROM {self.schema}.accounts"
-            cursor.execute(query)
-            result = cursor.fetchall()
-            user_ids = [user[0] for user in result]
-            print(f"User ids: {user_ids}")
-            return user_ids
-
-    # metoda do pobierania listy słowników zawierającej dane user_id i balance
-    # def get_all_users(self):
-    # Retrieves a list of dictionaries containing user_id and balance for each user in the system.
-    #     with self._conn.cursor() as cursor:
-    #         query = f"SELECT user_id, balance FROM {self.schema}.accounts"
-    #         cursor.execute(query)
-    #         result = cursor.fetchall()
-    #         users = []
-    #         for user in result:
-    #             user_dict = {"user_id": user[0], "balance": float(user[1])}
-    #             users.append(user_dict)
-    #         print(f"User dicts: {users}")
-    #         return users
-
-    def add_multiple_users(self, users_list):
-        # Adds multiple users at once from a list of dictionaries
-        try:
-            with self._conn.cursor() as cursor:
-                query = f"INSERT INTO {self.schema}.accounts (user_id, balance) VALUES (%s, %s)"
-                values = []
-                for user in users_list:
-                    user_id = user["user_id"]
-                    balance = user["balance"]
-                    values.append((user_id, balance))
-                cursor.executemany(query, values)
-                self._conn.commit()
-                print("All users added succesfully")
-
-        except Exception as e:
-            print(f"An error occured: {e}")
-            self._conn.rollback
-
-    def reset_balance(self, user_id):
-        # Resets the user’s account balance to 0
-        try:
-            with self._conn.cursor() as cursor:
-                query = (
-                    f"UPDATE {self.schema}.accounts SET balance = 0 WHERE user_id = %s"
-                )
-                cursor.execute(
-                    query,
-                    (user_id,),
-                )
-                self._conn.commit()
-                print(f"Account user {user_id} has been reset")
-
-        except Exception as e:
-            print(f"An error occurred while reset account {user_id}")
-            self._conn.rollback()
+        Parameters:
+        user_id (int): The user ID.
+        """
+        query = f"UPDATE {self.schema}.accounts SET balance = 0 WHERE user_id = %s"
+        self._execute_query(query, (user_id,))
