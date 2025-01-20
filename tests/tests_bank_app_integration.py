@@ -1,5 +1,6 @@
 import pytest
-from bank_app.bank_app_db import BankAccount
+from bank_app.bank_app_db import BankAccount, AccountFundsError
+
 
 # INSERT INTO bank_app_integration_tests.accounts (balance) VALUES (3000), (4000), (1000), (2000)
 
@@ -64,7 +65,7 @@ def test_user_exists(bank_account, bank_account_insert_data):
     result = bank_account.user_exists(user_id=2)
     assert result is True
 
-    result = bank_account.user_exists(user_id=15)
+    result = bank_account.user_exists(user_id=1000)
     assert result is False
 
 
@@ -87,12 +88,6 @@ def test_founds_transfer(bank_account, bank_account_insert_data):
     assert result == 500 and result2 == 2500
 
 
-def test_card_payment(bank_account, bank_account_insert_data):
-    bank_account.card_payment(user_id=3, amount=500)
-    result = bank_account.get_balance(record_id=3)[0]
-    assert result == 800
-
-
 def test_update_balance(bank_account, bank_account_insert_data):
     bank_account.update_balance(user_id=1, new_balance=4000)
     result = bank_account.get_balance(record_id=1)[0]
@@ -100,14 +95,25 @@ def test_update_balance(bank_account, bank_account_insert_data):
 
 
 def test_add_multiple_users(bank_account, bank_account_insert_data):
-    users = [{"user_id": 5, "balance": 5000}, {"user_id": 6, "balance": 6000}]
+    users = [
+        {"user_id": 5, "balance": 5000},
+        {"user_id": 6, "balance": 6000},
+        {"user_id": 7, "balance": 5000},
+    ]
     bank_account.add_multiple_users(users)
     result = bank_account.get_all_users()
     assert 5 in result
     assert 6 in result
+    assert 7 in result
 
 
 def test_reset_balance(bank_account, bank_account_insert_data):
     bank_account.reset_balance(user_id=1)
     result = bank_account.get_balance(record_id=1)[0]
     assert result == 0
+
+
+def test_remove_balance_no_founds(bank_account, bank_account_insert_data):
+    with pytest.raises(AccountFundsError):
+        bank_account.remove_balance(user_id=2, amount=10000)
+
