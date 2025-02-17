@@ -1,6 +1,12 @@
 import psycopg2
 import os
+from decimal import Decimal
+from enum import Enum
 
+class TransactionType(Enum):
+    BLIK = "BLIK"
+    DEBET_CARD = "Debet Card"
+    FUNDS_TRANSFER = "Funds Transfer"
 
 class TransactionException(Exception):
     pass
@@ -67,11 +73,22 @@ class BankAccount:
         Returns:
         float: The account balance.
         """
-        query = f"SELECT balance FROM {self.schema}.accounts WHERE user_id = %s"
-        result = self._execute_query(query, (record_id,))
-        return result[0][0]
+        query = f"SELECT balance FROM {self.schema}.bank_accounts WHERE user_id = %s"
+        result = self._execute_query(query, (record_id,))[0][0]
+        return result
 
-    def add_user(self, user_id: int, balance: float) -> None:
+    def add_user(
+        self,
+        name,
+        surname,
+        phone_number,
+        email,
+        city,
+        postal_code,
+        street,
+        street_number,
+        acommodation_number,
+    ) -> None:
         """
         Add a new user with the specified ID and balance.
 
@@ -79,20 +96,33 @@ class BankAccount:
         user_id (int): The user ID.
         balance (float): The initial account balance.
         """
-        query = f"INSERT INTO {self.schema}.accounts (user_id, balance) VALUES (%s, %s)"
-        self._execute_query(query, (user_id, balance))
+        query = f"INSERT INTO {self.schema}.users (name, surname, phone_number, email, city, postal_code, street, street_number, acommodation_number) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        self._execute_query(
+            query,
+            (
+                name,
+                surname,
+                phone_number,
+                email,
+                city,
+                postal_code,
+                street,
+                street_number,
+                acommodation_number,
+            ),
+        )
 
-    def remove_user(self, user_id: int) -> None:
+    def remove_user(self, user_id: str) -> None:
         """
         Remove a user with the specified ID.
 
         Parameters:
         user_id (int): The user ID to remove.
         """
-        query = f"DELETE FROM {self.schema}.accounts WHERE user_id = %s"
+        query = f"DELETE FROM {self.schema}.users WHERE user_id = %s"
         self._execute_query(query, (user_id,))
 
-    def add_balance(self, user_id: int, amount: float) -> None:
+    def add_balance(self, user_id: str, amount: float) -> None:
         """
         Add a specified amount to the user's account balance.
 
@@ -101,10 +131,12 @@ class BankAccount:
         amount (float): The amount to add.
         """
         new_balance = self.get_balance(user_id) + amount
-        query = f"UPDATE {self.schema}.accounts SET balance = %s WHERE user_id = %s"
+        query = (
+            f"UPDATE {self.schema}.bank_accounts SET balance = %s WHERE user_id = %s"
+        )
         self._execute_query(query, (new_balance, user_id))
 
-    def remove_balance(self, user_id: int, amount: float) -> None:
+    def remove_balance(self, user_id: str, amount: float) -> None:
         """
         Deduct a specified amount from the user's account balance.
 
@@ -118,10 +150,12 @@ class BankAccount:
         new_balance = self.get_balance(user_id) - amount
         if new_balance < 0:
             raise AccountFundsError("Insufficient funds in the account.")
-        query = f"UPDATE {self.schema}.accounts SET balance = %s WHERE user_id = %s"
+        query = (
+            f"UPDATE {self.schema}.bank_accounts SET balance = %s WHERE user_id = %s"
+        )
         self._execute_query(query, (new_balance, user_id))
 
-    def funds_transfer(self, user_id_from: int, user_id_to: int, amount: float) -> None:
+    def funds_transfer(self, user_id_from: str, user_id_to: str, amount: float) -> None:
         """
         Transfer funds between two accounts.
 
@@ -133,7 +167,7 @@ class BankAccount:
         self.remove_balance(user_id_from, amount)
         self.add_balance(user_id_to, amount)
 
-    def user_exists(self, user_id: int) -> bool:
+    def user_exists(self, user_id: str) -> bool:
         """
         Check if a user with the specified ID exists.
 
@@ -143,13 +177,11 @@ class BankAccount:
         Returns:
         bool: True if the user exists, False otherwise.
         """
-        query = (
-            f"SELECT EXISTS(SELECT 1 FROM {self.schema}.accounts WHERE user_id = %s)"
-        )
+        query = f"SELECT EXISTS(SELECT 1 FROM {self.schema}.users WHERE user_id = %s)"
         result = self._execute_query(query, (user_id,))
         return result[0][0]
 
-    def update_balance(self, user_id: int, new_balance: float) -> None:
+    def update_balance(self, user_id: str, new_balance: float) -> None:
         """
         Update the user's account balance to a new value.
 
@@ -157,7 +189,9 @@ class BankAccount:
         user_id (int): The user ID.
         new_balance (float): The new account balance.
         """
-        query = f"UPDATE {self.schema}.accounts SET balance = %s WHERE user_id = %s"
+        query = (
+            f"UPDATE {self.schema}.bank_accounts SET balance = %s WHERE user_id = %s"
+        )
         self._execute_query(query, (new_balance, user_id))
 
     def get_all_users(self) -> list[int]:
@@ -167,7 +201,7 @@ class BankAccount:
         Returns:
         list[int]: A list of user IDs.
         """
-        query = f"SELECT user_id FROM {self.schema}.accounts"
+        query = f"SELECT user_id FROM {self.schema}.users"
         result = self._execute_query(query)
         return [user[0] for user in result]
 
@@ -178,18 +212,45 @@ class BankAccount:
         Parameters:
         users_list (list[dict]): A list of dictionaries containing user_id and balance.
         """
-        query = f"INSERT INTO {self.schema}.accounts (user_id, balance) VALUES (%s, %s)"
-        values = [(user["user_id"], user["balance"]) for user in users_list]
+        query = f"INSERT INTO {self.schema}.users (name, surname, phone_number, email, city, postal_code, street, street_number, acommodation_number) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        values = [
+            (
+                user["name"],
+                user["surname"],
+                user["phone_number"],
+                user["email"],
+                user["city"],
+                user["postal_code"],
+                user["street"],
+                user["street_number"],
+                user["acommodation_number"],
+            )
+            for user in users_list
+        ]
         with self._conn.cursor() as cursor:
             cursor.executemany(query, values)
         self._conn.commit()
 
-    def reset_balance(self, user_id: int) -> None:
+    def reset_balance(self, user_id: str) -> None:
         """
         Reset the user's account balance to 0.
 
         Parameters:
         user_id (int): The user ID.
         """
-        query = f"UPDATE {self.schema}.accounts SET balance = 0 WHERE user_id = %s"
+        query = f"UPDATE {self.schema}.bank_accounts SET balance = 0 WHERE user_id = %s"
         self._execute_query(query, (user_id,))
+
+    def create_bank_account(
+        self,
+        balance: Decimal,
+        account_type: str,
+        user_id: str,
+        created_at: str,
+    ):
+        query = f"INSERT INTO {self.schema}.bank_accounts (balance, account_type, user_id, created_at) VALUES (%s, %s, %s, %s)"
+        self._execute_query(query, (balance, account_type, user_id, created_at))
+
+    def create_transaction(self, account_number_from: int, account_number_to: int, amount: Decimal, date: str, status: str, type: TransactionType):
+        query = f"INSERT INTO {self.schema}.transactions (account_number_from, account_number_to, amount, date, status, type) VALUES (%s, %s, %s, %s, %s, %s)"
+        self._execute_query(query, (account_number_from, account_number_to, amount, date, status, type))
