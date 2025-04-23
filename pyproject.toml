@@ -1,7 +1,7 @@
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
- 
+
 [project]
 name = "bank_app"
 version = "0.1.0a"
@@ -11,6 +11,13 @@ authors = [
 ]
 license = { file = "LICENSE" }
 readme = "README.md"
-[tool.pytest.ini_options]
-addopts = "--cov=bank_app --cov-report=html:coverage_reports/htmlcov"
-testpaths = ["tests"]
+dependencies = [
+    "sqlalchemy",
+    "psycopg2"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest"
+]
+
