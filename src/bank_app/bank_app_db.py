@@ -176,7 +176,7 @@ class BankAccount:
                 raise ValueError(f"Receiver account with ID {user_id_to} not found.")
 
             if sender.balance < amount:
-                raise ValueError("Insufficient funds for transfer.")
+                raise AccountFundsError("Insufficient funds for transfer.")
 
             sender.balance -= amount
             receiver.balance += amount
@@ -306,3 +306,16 @@ class BankAccount:
         with self._session_local() as session:
             session.add(model)
             session.commit()
+
+    def get_all_balance(self) -> dict[uuid.UUID, Decimal]:
+        """
+        Retrieves a dictionary of all user balances in a single query.
+
+        Returns:
+        dict[uuid.UUID, Decimal]: A dictionary {user_id: balance}
+        """
+        with self._session_local() as session:
+            accounts = session.query(
+                BankAccountModel.user_id, BankAccountModel.balance
+            ).all()
+            return {user_id: balance for user_id, balance in accounts}
