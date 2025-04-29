@@ -27,3 +27,4 @@ jobs:
       - name: Run tests
         run: |
           pytest ./tests/unit_tests_bank_app.py
+          
