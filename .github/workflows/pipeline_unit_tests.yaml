@@ -26,5 +26,5 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest ./tests/unit_tests_bank_app.py
+          pytest ./tests/unit/unit_tests_bank_app.py
           
