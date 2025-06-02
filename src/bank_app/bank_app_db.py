@@ -3,16 +3,15 @@ import os
 import uuid
 from decimal import Decimal
 from enum import Enum
-from bank_app.models import UserModel, BankAccountModel, TransactionModel
+from bank_app.models import UserModel, BankAccountModel, TransactionModel, Base
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy import create_engine
 
-BASE = declarative_base()
 
-DB_NAME = (os.getenv("DBNAME"),)
-PASSWORD = (os.getenv("PASSWORD"),)
-HOST = (os.getenv("HOST"),)
-PORT = (os.getenv("PORT"),)
+USER = os.getenv("USER")
+DB_NAME = os.getenv("DBNAME")
+PASSWORD = os.getenv("PASSWORD")
+HOST = os.getenv("HOST")
 
 
 class TransactionType(Enum):
@@ -37,13 +36,13 @@ class BankAccount:
         Parameters:
         schema (str): The schema name for the database.
         """
-        self._engine = create_engine("postgresql://postgres:lucas@localhost/postgres")
+        self._engine = create_engine(f"postgresql://{USER}:{PASSWORD}@{HOST}/{DB_NAME}")
         self._session_local = sessionmaker(
             autocommit=False, autoflush=False, bind=self._engine
         )
-        BASE.metadata.create_all(self._engine)
+        Base.metadata.create_all(self._engine)
 
-    def get_balance(self, user_id: uuid.UUID) -> Decimal:
+    def get_balance(self, user_id: uuid.UUID, account_number: int) -> Decimal:
         """
         Retrieve the account balance for a given user ID.
 
@@ -54,10 +53,16 @@ class BankAccount:
         Decimal: The account balance.
         """
         with self._session_local() as session:
-            account = session.query(BankAccountModel).filter_by(user_id=user_id).first()
+            account = (
+                session.query(BankAccountModel)
+                .filter_by(user_id=user_id, account_number=account_number)
+                .first()
+            )
 
             if account is None:
-                raise ValueError(f"Account for user {user_id} not found.")
+                raise ValueError(
+                    f"Account with ID {account_number} for user {user_id} not found."
+                )
 
             return account.balance
 
@@ -104,43 +109,61 @@ class BankAccount:
             session.delete(user)
             session.commit()
 
-    def add_balance(self, user_id: uuid.UUID, amount: Decimal) -> None:
+    def add_balance(
+        self, user_id: uuid.UUID, amount: Decimal, account_number: int
+    ) -> None:
         """
-        Add a specified amount to the user's account balance.
+        Add a specified amount to a user's specific bank account balance.
 
         Parameters:
         user_id (uuid.UUID): The user ID.
-        amount (Decimal): The amount to add.
+        amount (Decimal): The amount to add to the balance.
+        account_number (int): The number of the bank account to which the balance should be added.
 
         Raises:
-        ValueError: If the user account does not exist.
+        ValueError: If the specified account does not exist for the given user.
         """
         with self._session_local() as session:
-            account = session.query(BankAccountModel).filter_by(user_id=user_id).first()
+            account = (
+                session.query(BankAccountModel)
+                .filter_by(user_id=user_id, account_number=account_number)
+                .first()
+            )
 
             if account is None:
-                raise ValueError(f"Account for user {user_id} not found.")
+                raise ValueError(
+                    f"Account number {account_number} for user {user_id} not found."
+                )
 
             account.balance += amount
             session.commit()
 
-    def remove_balance(self, user_id: uuid.UUID, amount: Decimal) -> None:
+    def remove_balance(
+        self, user_id: uuid.UUID, amount: Decimal, account_number: int
+    ) -> None:
         """
         Deduct a specified amount from the user's account balance.
 
         Parameters:
         user_id (uuid.UUID): The user ID.
         amount (Decimal): The amount to deduct.
+        account_number (int): The account number.
 
         Raises:
         AccountFundsError: If the resulting balance is negative.
         ValueError: If the user account does not exist.
         """
         with self._session_local() as session:
-            account = session.query(BankAccountModel).filter_by(user_id=user_id).first()
+            account = (
+                session.query(BankAccountModel)
+                .filter_by(user_id=user_id, account_number=account_number)
+                .first()
+            )
 
             if account is None:
-                raise ValueError(f"Account for user {user_id} not found.")
+                raise ValueError(
+                    f"Account with ID {account_number} for user {user_id} not found."
+                )
 
             if account.balance < amount:
                 raise AccountFundsError("Insufficient funds in the account.")
@@ -149,31 +172,42 @@ class BankAccount:
             session.commit()
 
     def funds_transfer(
-        self, user_id_from: uuid.UUID, user_id_to: uuid.UUID, amount: Decimal
+        self,
+        user_id_from: uuid.UUID,
+        user_id_to: uuid.UUID,
+        amount: Decimal,
+        account_number_from: int,
+        account_number_to: int,
     ) -> None:
         """
-        Transfer funds between two accounts.
+        Transfer funds between two specific accounts.
 
         Parameters:
         user_id_from (uuid.UUID): The ID of the sender.
         user_id_to (uuid.UUID): The ID of the recipient.
         amount (Decimal): The amount to transfer.
+        account_number_from (int): Sender's account number.
+        account_number_to (int): Receiver's account number.
 
         Raises:
-        ValueError: If the sender does not have enough funds.
+        ValueError: If any account does not exist or if insufficient funds.
         """
         with self._session_local() as session:
             sender = (
-                session.query(BankAccountModel).filter_by(user_id=user_id_from).first()
+                session.query(BankAccountModel)
+                .filter_by(user_id=user_id_from, account_number=account_number_from)
+                .first()
             )
             receiver = (
-                session.query(BankAccountModel).filter_by(user_id=user_id_to).first()
+                session.query(BankAccountModel)
+                .filter_by(user_id=user_id_to, account_number=account_number_to)
+                .first()
             )
 
             if sender is None:
-                raise ValueError(f"Sender account with ID {user_id_from} not found.")
+                raise ValueError(f"Sender account {account_number_from} not found.")
             if receiver is None:
-                raise ValueError(f"Receiver account with ID {user_id_to} not found.")
+                raise ValueError(f"Receiver account {account_number_to} not found.")
 
             if sender.balance < amount:
                 raise AccountFundsError("Insufficient funds for transfer.")
@@ -198,7 +232,9 @@ class BankAccount:
                 session.query(UserModel).filter_by(user_id=user_id).exists()
             ).scalar()
 
-    def update_balance(self, user_id: uuid.UUID, new_balance: Decimal) -> None:
+    def update_balance(
+        self, user_id: uuid.UUID, account_number: int, new_balance: Decimal
+    ) -> None:
         """
         Update the user's account balance to a new value.
 
@@ -210,10 +246,16 @@ class BankAccount:
         ValueError: If the user account is not found.
         """
         with self._session_local() as session:
-            account = session.query(BankAccountModel).filter_by(user_id=user_id).first()
+            account = (
+                session.query(BankAccountModel)
+                .filter_by(user_id=user_id, account_number=account_number)
+                .first()
+            )
 
             if account is None:
-                raise ValueError(f"Account with user ID {user_id} not found.")
+                raise ValueError(
+                    f"Account with user ID {user_id} and number {account_number} not found."
+                )
 
             account.balance = new_balance
             session.commit()
@@ -255,7 +297,7 @@ class BankAccount:
             session.add_all(users)
             session.commit()
 
-    def reset_balance(self, user_id: uuid.UUID) -> None:
+    def reset_balance(self, user_id: uuid.UUID, account_number: int) -> None:
         """
         Resets the balance of a user's bank account to zero.
 
@@ -270,7 +312,9 @@ class BankAccount:
         """
         with self._session_local() as session:
             bank_account = (
-                session.query(BankAccountModel).filter_by(user_id=user_id).first()
+                session.query(BankAccountModel)
+                .filter_by(user_id=user_id, account_number=account_number)
+                .first()
             )
 
             if bank_account is None:
@@ -293,7 +337,14 @@ class BankAccount:
             session.add(model)
             session.commit()
 
-    def create_transaction(self, model: TransactionModel):
+    def create_transaction(
+        self,
+        account_number_from: int,
+        account_number_to: int,
+        amount: Decimal,
+        status: str,
+        type: str,
+    ) -> int:
         """
         Creates a new transaction record in the system.
 
@@ -304,8 +355,31 @@ class BankAccount:
         None: This method does not return any value. It commits the new transaction to the database.
         """
         with self._session_local() as session:
-            session.add(model)
+
+            from_account = (
+                session.query(BankAccountModel)
+                .filter_by(account_number=account_number_from)
+                .one()
+            )
+            to_account = (
+                session.query(BankAccountModel)
+                .filter_by(account_number=account_number_to)
+                .one()
+            )
+
+            from_account.balance -= amount
+            to_account.balance += amount
+
+            transaction = TransactionModel(
+                account_number_from=account_number_from,
+                account_number_to=account_number_to,
+                amount=amount,
+                status=status,
+                type=type,
+            )
+            session.add(transaction)
             session.commit()
+            return transaction.transaction_id
 
     def get_all_balance(self) -> dict[uuid.UUID, Decimal]:
         """
@@ -319,3 +393,6 @@ class BankAccount:
                 BankAccountModel.user_id, BankAccountModel.balance
             ).all()
             return {user_id: balance for user_id, balance in accounts}
+
+
+BankAccount()
