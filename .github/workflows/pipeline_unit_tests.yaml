@@ -6,8 +6,17 @@ on:
       - main
 
 jobs:
+
   test:
     runs-on: ubuntu-latest
+
+    service:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_DB: db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
 
     steps:
       - name: Checkout code
@@ -23,8 +32,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install .[test]
 
-
-      - name: Run tests
+      - name: Run Unit tests
         run: |
           pytest ./tests/unit/unit_tests_bank_app.py
           
+      - name: Run Integration Tests
+        run: |
+          pytest ./tests/integration/bank_app.py
+        env:
+          USER: postgres
+          DB_NAME: db
+          PASSWORD: postgres
+          HOST: localhost
