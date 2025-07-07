@@ -15,7 +15,7 @@ def mock_session():
 
 @pytest.fixture
 def bank():
-    with patch("bank_app.bank_app_db.BASE.metadata.create_all"):
+    with patch("bank_app.bank_app_db.Base.metadata.create_all"):
         return BankAccount()
 
 
