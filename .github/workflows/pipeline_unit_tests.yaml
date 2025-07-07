@@ -49,6 +49,6 @@ jobs:
           pytest ./tests/integration/bank_app.py
         env:
           USER: postgres
-          DB_NAME: db
+          DBNAME: db        # use DBNAME here, matching code
           PASSWORD: postgres
           HOST: localhost
