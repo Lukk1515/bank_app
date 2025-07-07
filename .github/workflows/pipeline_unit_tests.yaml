@@ -43,6 +43,11 @@ jobs:
       - name: Run Unit tests
         run: |
           pytest ./tests/unit/unit_tests_bank_app.py
+        env:
+          USER: postgres
+          DBNAME: db        # use DBNAME here, matching code
+          PASSWORD: postgres
+          HOST: localhost
           
       - name: Run Integration Tests
         run: |
