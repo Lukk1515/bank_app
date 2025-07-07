@@ -1,10 +1,9 @@
-import psycopg2
 import os
 import uuid
 from decimal import Decimal
 from enum import Enum
 from bank_app.models import UserModel, BankAccountModel, TransactionModel, Base
-from sqlalchemy.orm import sessionmaker, Session, declarative_base
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 
 
